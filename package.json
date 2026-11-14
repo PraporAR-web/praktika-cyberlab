@@ -1,0 +1,1 @@
+{"name":"praktika-cyberlab","version":"2.1.0","private":true,"scripts":{"test":"node --test tests/*.test.cjs","check":"node --check app.js && node --check core.js && node --check storage.js && node --check catalogue.js"},"devDependencies":{"fake-indexeddb":"6.2.8"}}

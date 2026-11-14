@@ -1,6 +1,6 @@
 (function(root){
 const clean=s=>String(s||'').replace(/\r/g,'').trim();
-function initial(){return{version:1,minutes:15,track:'auto',statuses:{},drafts:{},events:[],active:null};}
+function initial(){return{version:2,minutes:15,track:'auto',statuses:{},drafts:{},events:[],active:null};}
 function nextLessons(state,lessons){return Object.keys(TRACKS).map(track=>lessons.find(l=>l.track===track&&!state.statuses[l.id])).filter(Boolean);}
 function recommend(state,lessons){const eligible=lessons.filter(l=>(state.track==='auto'||l.track===state.track)&&!state.statuses[l.id]);const active=eligible.find(l=>l.id===state.active);if(active)return active;const started=eligible.find(l=>state.drafts[l.id]?.started);if(started)return started;const candidates=nextLessons(state,lessons).filter(l=>state.track==='auto'||l.track===state.track);return candidates.find(l=>l.minutes<=state.minutes)||candidates[0]||null;}
 function checkOutput(value,expected){return clean(value).split('\n').map(s=>s.trim()).join('\n')===clean(expected).split('\n').map(s=>s.trim()).join('\n');}
@@ -18,6 +18,14 @@ function checkRules(code,rules){
   return rule.text===undefined||elements.some(el=>normalize(el.textContent)===normalize(rule.text));
  });
 }
-function validateImport(data,lessons){if(!data||data.version!==1||!data.statuses||!data.drafts||!Array.isArray(data.events))throw Error('Неверный формат файла прогресса.');const state=initial(),ids=new Set(lessons.map(l=>l.id));state.minutes=[5,15,30,45].includes(data.minutes)?data.minutes:15;state.track=['auto','python','cpp','html'].includes(data.track)?data.track:'auto';state.active=ids.has(data.active)?data.active:null;for(const id of ids){const status=data.statuses[id];if(status&&['tested','self'].includes(status.source)&&typeof status.at==='string'&&!isNaN(Date.parse(status.at)))state.statuses[id]={source:status.source,at:status.at};const d=data.drafts[id];if(d&&typeof d==='object')state.drafts[id]={code:String(d.code||'').slice(0,50000),output:String(d.output||'').slice(0,5000),hint:Math.min(2,Math.max(0,Number(d.hint)||0)),started:!!d.started,passed:false};}state.events=data.events.filter(e=>ids.has(e.id)&&['tested','self'].includes(e.source)&&typeof e.at==='string'&&!isNaN(Date.parse(e.at))).slice(-500).map(e=>({id:e.id,source:e.source,at:e.at}));return state;}
+function validateImport(data,lessons){
+ const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v), fail=()=>{throw Error('Неверный или повреждённый файл прогресса.');}, ids=new Set(lessons.map(l=>l.id));
+ if(!object(data)||![1,2].includes(data.version)||!object(data.statuses)||!object(data.drafts)||!Array.isArray(data.events)||data.events.length>5000||![5,15,30,45].includes(data.minutes)||!['auto','python','cpp','html'].includes(data.track)||(data.active!==null&&!ids.has(data.active)))fail();
+ const state=initial();state.minutes=data.minutes;state.track=data.track;state.active=data.active;
+ const validStatus=s=>object(s)&&['tested','self'].includes(s.source)&&typeof s.at==='string'&&!Number.isNaN(Date.parse(s.at));
+ for(const [id,status] of Object.entries(data.statuses)){if(!ids.has(id)||!validStatus(status))fail();state.statuses[id]={source:status.source,at:status.at};}
+ for(const [id,d] of Object.entries(data.drafts)){if(!ids.has(id)||!object(d)||typeof d.code!=='string'||d.code.length>50000||typeof d.output!=='string'||d.output.length>5000||!Number.isInteger(d.hint)||d.hint<0||d.hint>2||typeof d.started!=='boolean')fail();state.drafts[id]={code:d.code,output:d.output,hint:d.hint,started:d.started,passed:false};}
+ state.events=data.events.map(e=>{if(!validStatus(e)||!ids.has(e.id))fail();return{id:e.id,source:e.source,at:e.at};});return state;
+}
 root.PracticeCore={initial,nextLessons,recommend,checkOutput,checkHtml,checkRules,validateImport};
 })(typeof window!=='undefined'?window:globalThis);
